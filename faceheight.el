@@ -47,11 +47,11 @@ list of acceptable heights."
 Adjust this first to change overall face size."
   :type 'integer)
 
-(defcustom faceheight-px-factor 0.32
+(defcustom faceheight-px-factor 0.46
   "Monitor px/mm factor for `faceheight-heights' index increment."
   :type 'float)
 
-(defcustom faceheight-size-increment 200
+(defcustom faceheight-size-increment 600
   "Monitor mm size divisor `faceheight-heights' index incrememnt."
   :type 'integer)
 
