@@ -3,7 +3,7 @@
 ;; Copyright (C) 2018 James Ferguson
 ;;
 ;; Author: James Ferguson <james@faff.org>
-;; Version: 1.1
+;; Version: 1.11
 ;; Package-Requires: ((emacs "24.4"))
 ;; Keywords: convenience
 ;; URL: https://github.com/WJCFerguson/faceheight
@@ -47,7 +47,7 @@ list of acceptable heights."
 Adjust this first to change overall face size."
   :type 'integer)
 
-(defcustom faceheight-px-factor 1.4
+(defcustom faceheight-px-factor 1.42
   "Monitor px/mm factor for `faceheight-heights' index increment."
   :type 'float)
 
