@@ -3,7 +3,7 @@
 ;; Copyright (C) 2018 James Ferguson
 ;;
 ;; Author: James Ferguson <james@faff.org>
-;; Version: 1.0
+;; Version: 1.1
 ;; Package-Requires: ((emacs "24.4"))
 ;; Keywords: convenience
 ;; URL: https://github.com/WJCFerguson/faceheight
