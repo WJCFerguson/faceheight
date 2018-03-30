@@ -41,17 +41,17 @@ Call `faceheight-inc-size' and note pleasing sizes to generate a
 list of acceptable heights."
   :type '(vector integer))
 
-(defcustom faceheight-start-index 2
+(defcustom faceheight-start-index -6
   "Baseline `faceheight-heights' index.
 
 Adjust this first to change overall face size."
   :type 'integer)
 
-(defcustom faceheight-px-factor 0.46
+(defcustom faceheight-px-factor 1.4
   "Monitor px/mm factor for `faceheight-heights' index increment."
   :type 'float)
 
-(defcustom faceheight-size-increment 600
+(defcustom faceheight-size-increment 150
   "Monitor mm size divisor `faceheight-heights' index incrememnt."
   :type 'integer)
 
