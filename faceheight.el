@@ -109,11 +109,13 @@ frame to act upon (default current frame)"
                           :height (faceheight--height arg frame)))))
 
 ;;;###autoload
-(defun faceheight-fix-all ()
-  "Set up all frames' face heights with faceheight-fix-frame."
-  (interactive)
+(defun faceheight-fix-all (&optional arg)
+  "Set up all frames' face heights with faceheight-fix-frame.
+
+Positive/negative prefix ARG selects size up/down."
+  (interactive "P")
   (dolist (this-frame (frame-list))
-    (faceheight-fix-frame nil this-frame)))
+    (faceheight-fix-frame arg this-frame)))
 
 
 ;;;###autoload
