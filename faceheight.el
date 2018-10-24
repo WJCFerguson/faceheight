@@ -133,5 +133,11 @@ Positive/negative prefix ARG selects size up/down."
     (message "default text height now: %s" (face-attribute 'default :height))))
 
 
+(defun faceheight-inc-start-index (&optional arg)
+  "Increment the start index, or adjust it with prefix ARG."
+  (interactive "P")
+  (setq faceheight-start-index (+ faceheight-start-index (if arg arg 1))))
+
+
 (provide 'faceheight)
 ;;; faceheight.el ends here
