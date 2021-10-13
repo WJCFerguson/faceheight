@@ -51,7 +51,7 @@ Adjust this first to change overall face size."
   "Monitor px/mm factor for `faceheight-heights' index increment."
   :type 'float)
 
-(defcustom faceheight-size-increment 150
+(defcustom faceheight-size-increment 148
   "Monitor mm size divisor `faceheight-heights' index incrememnt."
   :type 'integer)
 
