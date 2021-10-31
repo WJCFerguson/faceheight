@@ -1,9 +1,9 @@
 ;;; faceheight.el --- Configure frame face size automatically
 ;;
-;; Copyright (C) 2018 James Ferguson
+;; Copyright (C) James Ferguson
 ;;
 ;; Author: James Ferguson <james@faff.org>
-;; Version: 1.11
+;; Version: 2.0
 ;; Package-Requires: ((emacs "24.4"))
 ;; Keywords: convenience
 ;; URL: https://github.com/WJCFerguson/faceheight
@@ -16,128 +16,130 @@
 ;;
 ;;; Commentary:
 ;;
-;; This package attempts to set the default face size (via height)
-;; appropriately for the monitor.
+;; This package attempts to set the default face's point size based on monitor
+;; resolution and/or pixel pitch.  See customization items.
 ;;
-;; Setting sizes via height seems to be the easiest way, but some
-;; heights look better than others.  Therefore use faceheight-inc-size
-;; to select good sizes and populate faceheight-heights.
+;; Bind the commands `faceheight-fix-frame', `faceheight-adjust', and/or add
+;; `faceheight-window-size-change' to `window-size-change-functions'.  e.g.:
 ;;
-;; Bind the commands `faceheight-fix-frame', `faceheight-fix-all',
-;; `faceheight-inc-size'.
+;; (use-package faceheight
+;;   :commands (faceheight-fix-frame faceheight-window-size-change)
+;;   :init
+;;   (add-to-list #'window-size-change-functions #'faceheight-window-size-change))`
+;;
+;; If you find it lacking, let me know how you think it should be improved
+;; (github issues).  Need more criteria for adjustment?  Frame width?
 ;;
 ;;; Code:
 
 
 ;; =============================================================================
 (defgroup faceheight nil
-  "Setting up a frame frame sizes by height."
+  "Setting up a frame font sizes to suit the current display."
   :group 'convenience)
 
-(defcustom faceheight-heights [75 90 105 120 135 150 165 180 203 218]
-  "Array of face heights indexed by `faceheight--height'.
+(defcustom faceheight-default-points 15
+  "The baseline font point size, to then be adjusted with -thresholds values.
 
-Call `faceheight-inc-size' and note pleasing sizes to generate a
-list of acceptable heights."
-  :type '(vector integer))
+Some fonts at least appear to render better at point sizes that
+are multiples of 3."
+  :type 'string)
 
-(defcustom faceheight-start-index -6
-  "Baseline `faceheight-heights' index.
+(defcustom faceheight-px-count-thresholds '((2000 . 3))
+  "Point size offsets from the maximum monitor dimension in pixels.
 
-Adjust this first to change overall face size."
-  :type 'integer)
+List of pairs of (monitor-size-in-pixels . font-point-offset).
 
-(defcustom faceheight-px-factor 1.42
-  "Monitor px/mm factor for `faceheight-heights' index increment."
-  :type 'float)
+The 2nd value (cdr) of the final cell encountered where the 1st
+value (car) is <= the monitor size in px, will be used as a
+font point offset.  Thresholds should therefore be sorted in
+rising order.
 
-(defcustom faceheight-size-increment 148
-  "Monitor mm size divisor `faceheight-heights' index incrememnt."
-  :type 'integer)
+E.g.: if set to `(list (2000 . 3))' then a screen >= 2000px will
+gain 3 font points.
+")
 
+(defcustom faceheight-pixel-pitch-thresholds '((0 . 3) (0.12 . 0) (0.17 . -3))
+  "List of (px-pitch-threshold . font-point-offset).
+
+As with `faceheight-px-count-thresholds', an offset will be
+selected from the monitor's pixel pitch.
+")
 
 ;; =============================================================================
-(defun faceheight-monitor-size-mm (&optional frame)
-  "Return the max mm dimension for monitor showing FRAME."
-  (apply 'max (cdr (assoc 'mm-size (frame-monitor-attributes frame)))))
+(defun faceheight--monitor-size-mm (frame)
+  "Return the max dimension of FRAME's monitor in mm."
+  (apply 'max (frame-monitor-attribute 'mm-size frame)))
 
 
-(defun faceheight-monitor-size-px (&optional frame)
-  "Return the max px dimension for monitor showing FRAME."
-  (apply 'max (cdddr (assoc 'geometry
-                            (frame-monitor-attributes frame)))))
+(defun faceheight--monitor-size-px (frame)
+  "Return the max dimension of FRAME's monitor in pixels."
+  (apply 'max (cddr (frame-monitor-attribute 'geometry frame))))
 
 
-(defun faceheight-pixel-pitch (&optional frame)
-  "Calculate the pixel pitch for FRAME (default current frame)."
+(defun faceheight--pixel-pitch (frame)
+  "Calculate the pixel pitch for FRAME in mm."
   ;; On a rotated monitor, px geom is rotated but size is not, so use
   ;; max dimension of each.
-  (let* ((monitor-attrs (frame-monitor-attributes frame)))
-    (/ (float (faceheight-monitor-size-mm frame))
-       (faceheight-monitor-size-px frame))))
+  (/ (float (faceheight--monitor-size-mm frame))
+     (faceheight--monitor-size-px frame)))
 
 
-(defun faceheight--height (arg &optional frame)
-  "Return face height choice from `faceheight-heights'.
+(defun faceheight--threshold-offset (threshold-list val)
+  "Find the offset for VAL in THRESHOLD-LIST."
+  (let ((result 0))
+    (dolist (width-threshold threshold-list)
+      (when (>= val (car width-threshold))
+        (setq result (cdr width-threshold))))
+    result))
 
-Numeric Prefix ARG may be used to shift the index, applies to
-current or supplied FRAME."
-  (interactive "P")
-  (let ((idx
-         (floor
-          (+ faceheight-start-index
-             (if (numberp arg) arg 0)
-             (floor (/ (faceheight-monitor-size-mm frame)
-                       faceheight-size-increment))
-             (* faceheight-px-factor
-                (/ 1 (faceheight-pixel-pitch frame)))))))
-    (elt faceheight-heights
-         (max 0 (min (- (length faceheight-heights) 1) idx)))))
 
+(defun faceheight--point-size (frame)
+  "Return the point size to use for this frame."
+  (+ faceheight-default-points
+     ;; manual adjustment:
+     (or (frame-parameter frame 'faceheight-fixed-adjustment) 0)
+     ;; pixel pitch adjustment:
+     (faceheight--threshold-offset faceheight-pixel-pitch-thresholds
+                                   (faceheight--pixel-pitch frame))
+     ;; monitor size in px adjustment:
+     (faceheight--threshold-offset faceheight-px-count-thresholds
+                                   (faceheight--monitor-size-px frame))))
 
 ;;;###autoload
-(defun faceheight-fix-frame (arg &optional frame)
-  "Set the default face height appropriately for the window size.
+(defun faceheight-adjust (frame offset)
+  "Adjust FRAME's font-point adjustment by OFFSET persistently.
 
-Positive/negative prefix ARG selects size up/down.  FRAME selects
-frame to act upon (default current frame)"
-  (interactive "P")
+Add a custom fixed offset to the faceheight point size calculation.
+
+If OFFSET is nil, reset adjustment to zero."
+  (set-frame-parameter
+   frame
+   'faceheight-fixed-adjustment
+   (if offset
+       (+ offset (or (frame-parameter frame 'faceheight-fixed-adjustment) 0))
+     0))
+  (message "Setting default font size to %s points" (faceheight--point-size frame))
+  (faceheight-fix-frame frame))
+
+;;;###autoload
+(defun faceheight-fix-frame (&optional frame)
+  "Set the default text size appropriately for the window display."
+  (interactive)
   (when (display-graphic-p)
-    (let ((frame (or frame (selected-frame))))
-      (set-face-attribute 'default
-                          frame
-                          :height (faceheight--height arg frame)))))
+    (let* ((frame (or frame (selected-frame)))
+           (monitor-size-px (faceheight--monitor-size-px frame)))
+      (set-frame-parameter frame
+                           'font
+                           (format "%s-%d"
+                                   (face-attribute 'default :family)
+                                   (faceheight--point-size frame))))))
 
 ;;;###autoload
-(defun faceheight-fix-all (&optional arg)
-  "Set up all frames' face heights with faceheight-fix-frame.
-
-Positive/negative prefix ARG selects size up/down."
-  (interactive "P")
-  (dolist (this-frame (frame-list))
-    (faceheight-fix-frame arg this-frame)))
-
-
-;;;###autoload
-(defun faceheight-inc-size (&optional arg)
-  "Increase the face one step, prefix ARG means step down."
-  (interactive "P")
-  ;; find current size in faceheight-heights
-  (let* ((step (if arg -1 1))
-         (start-size (face-attribute 'default :height))
-         (tried-size (face-attribute 'default :height)))
-    (while (= start-size (face-attribute 'default :height))
-      (setq tried-size (+ step tried-size))
-      (set-face-attribute 'default (selected-frame) :height tried-size)
-      (redisplay))
-    (message "default text height now: %s" (face-attribute 'default :height))))
-
-
-(defun faceheight-inc-start-index (&optional arg)
-  "Increment the start index, or adjust it with prefix ARG."
-  (interactive "P")
-  (setq faceheight-start-index (+ faceheight-start-index (if arg arg 1))))
-
+(defun faceheight-window-size-change (window-or-frame)
+  "Function for `window-size-change-functions' to fix the frame text size."
+  (when (and (framep window-or-frame) (frame-size-changed-p window-or-frame))
+    (faceheight-fix-frame window-or-frame)))
 
 (provide 'faceheight)
 ;;; faceheight.el ends here
